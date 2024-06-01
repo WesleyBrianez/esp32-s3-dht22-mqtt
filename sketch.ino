@@ -4,6 +4,7 @@
 
 #define DHT_PIN   16
 #define DHT_TYPE  DHT22
+#define BT_PIN    GPIO_NUM_14
 
 DHT dht (DHT_PIN, DHT_TYPE);
 
@@ -14,6 +15,7 @@ TaskHandle_t state_h;
 
 void setup()
 {
+  pinMode(BT_PIN, INPUT_PULLUP);
   Serial.begin(115200);
 
   xTaskCreatePinnedToCore(pvTask_Rgb,          "rgb_h",    2048, NULL, 1, &rgb_h,    APP_CPU_NUM);
@@ -35,19 +37,20 @@ void loop()
     Serial.println();
 }
 
-void pvTask_Rgb(void *arg) {
-    while(1) {
+void pvTask_Rgb(void *arg)
+{
+  while(1)
+  {
+    Serial.print(__func__);
+    Serial.print(" : ");
+    Serial.print(xTaskGetTickCount());
+    Serial.print(" : ");
+    Serial.print("This loop runs on APP_CPU which id is:");
+    Serial.println(xPortGetCoreID());
+    Serial.println();
 
-        Serial.print(__func__);
-        Serial.print(" : ");
-        Serial.print(xTaskGetTickCount());
-        Serial.print(" : ");
-        Serial.print("This loop runs on APP_CPU which id is:");
-        Serial.println(xPortGetCoreID());
-        Serial.println();
-
-        vTaskDelay(100);
-    }
+    vTaskDelay(100);
+  }
 }
 
 void pvTask_Dht22(void *arg)
@@ -68,34 +71,31 @@ void pvTask_Dht22(void *arg)
   }
 }
 
-void pvTask_Button(void *arg) {
-    while(1) {
+void pvTask_Button(void *arg)
+{
+  while(1)
+  {
+    Serial.print("button:");
+    Serial.println(digitalRead(BT_PIN));
 
-        Serial.print(__func__);
-        Serial.print(" : ");
-        Serial.print(xTaskGetTickCount());
-        Serial.print(" : ");
-        Serial.print("This loop runs on PRO_CPU which id is:");
-        Serial.println(xPortGetCoreID());
-        Serial.println();
-
-        vTaskDelay(100);
-    }
+    vTaskDelay(100);
+  }
 }
 
-void pvTask_StateReport(void *arg) {
-    while(1) {
+void pvTask_StateReport(void *arg)
+{
+  while(1)
+  {
+    Serial.print(__func__);
+    Serial.print(" : ");
+    Serial.print(xTaskGetTickCount());
+    Serial.print(" : ");
+    Serial.print("This loop runs on PRO_CPU which id is:");
+    Serial.println(xPortGetCoreID());
+    Serial.println();
 
-        Serial.print(__func__);
-        Serial.print(" : ");
-        Serial.print(xTaskGetTickCount());
-        Serial.print(" : ");
-        Serial.print("This loop runs on PRO_CPU which id is:");
-        Serial.println(xPortGetCoreID());
-        Serial.println();
-
-        vTaskDelay(100);
-    }
+    vTaskDelay(100);
+  }
 }
 
 void TempAndHum()

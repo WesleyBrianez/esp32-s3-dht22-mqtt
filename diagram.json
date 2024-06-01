@@ -7,17 +7,37 @@
     {
       "type": "wokwi-dht22",
       "id": "dht1",
-      "top": -95.7,
+      "top": -162.9,
       "left": -130.2,
       "attrs": { "temperature": "24.1", "humidity": "48" }
+    },
+    {
+      "type": "wokwi-led-ring",
+      "id": "ring1",
+      "top": -200.96,
+      "left": 154.79,
+      "attrs": { "pixels": "16" }
+    },
+    {
+      "type": "wokwi-pushbutton-6mm",
+      "id": "btn1",
+      "top": 207.6,
+      "left": -56.8,
+      "rotate": 180,
+      "attrs": { "color": "green", "bounce": "1" }
     }
   ],
   "connections": [
     [ "esp:TX", "$serialMonitor:RX", "", [] ],
     [ "esp:RX", "$serialMonitor:TX", "", [] ],
     [ "dht1:VCC", "esp:3V3.1", "red", [ "v0" ] ],
-    [ "dht1:GND", "esp:GND.2", "black", [ "v0", "h86.4", "v-28.8", "h115.2", "v38.4" ] ],
-    [ "esp:16", "dht1:SDA", "green", [ "h-110.68", "v-76.98", "h-0.1" ] ]
+    [ "dht1:GND", "esp:GND.2", "black", [ "h201.6", "v76.8", "h-23.77" ] ],
+    [ "esp:16", "dht1:SDA", "green", [ "h-110.68", "v-76.98", "h-0.1" ] ],
+    [ "ring1:DIN", "esp:2", "green", [ "v0" ] ],
+    [ "ring1:GND", "esp:GND.2", "black", [ "v0" ] ],
+    [ "ring1:VCC", "esp:3V3.1", "red", [ "v19.2", "h-297.6", "v57.78" ] ],
+    [ "btn1:1.l", "esp:GND.1", "green", [ "h0" ] ],
+    [ "btn1:2.l", "esp:14", "blue", [ "h0" ] ]
   ],
   "dependencies": {}
 }
