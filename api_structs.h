@@ -27,11 +27,23 @@ typedef enum
   BT_STATE_MAX_INDEX
 }eButtonState;
 
+typedef enum
+{
+  DISCONNECTED = 0,
+  CONNECTED,
+}eMqttState;
+
 //structs---------------------------
 typedef struct
 {
   eButtonState state;
   volatile TickType_t tickCount;
 }sButton;
+
+typedef struct
+{
+  eMqttState state;
+  volatile TickType_t tickCount;
+}sMqtt;
 
 #endif

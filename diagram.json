@@ -12,19 +12,27 @@
       "attrs": { "temperature": "24.1", "humidity": "48" }
     },
     {
-      "type": "wokwi-led-ring",
-      "id": "ring1",
-      "top": -200.96,
-      "left": 154.79,
-      "attrs": { "pixels": "16" }
-    },
-    {
       "type": "wokwi-pushbutton-6mm",
       "id": "btn1",
       "top": 207.6,
       "left": -56.8,
       "rotate": 180,
       "attrs": { "color": "green", "bounce": "1" }
+    },
+    { "type": "wokwi-neopixel", "id": "rgb1", "top": -32.3, "left": 143, "attrs": {} },
+    {
+      "type": "wokwi-led",
+      "id": "led1",
+      "top": -32.4,
+      "left": 195.8,
+      "attrs": { "color": "red" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r1",
+      "top": 51.95,
+      "left": 105.6,
+      "attrs": { "value": "1000" }
     }
   ],
   "connections": [
@@ -33,11 +41,14 @@
     [ "dht1:VCC", "esp:3V3.1", "red", [ "v0" ] ],
     [ "dht1:GND", "esp:GND.2", "black", [ "h201.6", "v76.8", "h-23.77" ] ],
     [ "esp:16", "dht1:SDA", "green", [ "h-110.68", "v-76.98", "h-0.1" ] ],
-    [ "ring1:DIN", "esp:2", "green", [ "v0" ] ],
-    [ "ring1:GND", "esp:GND.2", "black", [ "v0" ] ],
-    [ "ring1:VCC", "esp:3V3.1", "red", [ "v19.2", "h-297.6", "v57.78" ] ],
     [ "btn1:1.l", "esp:GND.1", "green", [ "h0" ] ],
-    [ "btn1:2.l", "esp:14", "blue", [ "h0" ] ]
+    [ "btn1:2.l", "esp:14", "blue", [ "h0" ] ],
+    [ "rgb1:DIN", "esp:39", "green", [ "h18.4", "v134.4" ] ],
+    [ "rgb1:VSS", "esp:GND.2", "black", [ "h8.8", "v47.1", "h-81.37" ] ],
+    [ "rgb1:VDD", "esp:3V3.1", "red", [ "h-192", "v19.2" ] ],
+    [ "led1:C", "esp:GND.2", "black", [ "v0" ] ],
+    [ "led1:A", "r1:2", "green", [ "v0" ] ],
+    [ "r1:1", "esp:1", "green", [ "v0" ] ]
   ],
   "dependencies": {}
 }
