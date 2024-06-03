@@ -1,23 +1,13 @@
 /*
-  Configure o cliente do navegador HiveMQ para visualizar as
-  mensagens MQTT publicadas pelo cliente MQTT.
+  1) Go to http://www.hivemq.com/demos/websocket-client/
 
-  1) Vá para a URL abaixo e clique no botão conectar
-     http://www.hivemq.com/demos/websocket-client/
+  2) Add New Topic Subscription:
+     topic_json/#
 
-  2) Adicione os tópicos de assinatura um para cada tópico que o ESP32 usa:
-     topic_on_off_led/#
-     topic_sensor_temperature/#
-     topic_sensor_humidity/#
+  3) Send message to device by writing "topic_rgb" on Topic field and some string from mqtt_commands at Message field
 
-  3) Experimento publicar no topico topic_on_off_led com a mensagem 1 e 0
-     para ligar e desligar o LED"
-
-  IMPORTANTE: É necessário rodar o Wokwi Gateway e habilitar a opção
-  "Enable Private Wokwi IoT Gateway" através da tecla de atalho F1 no editor de código.
-
-  Para baixar o Wokwi IoT Network Gateway acesse o seguinte link:
-    https://github.com/wokwi/wokwigw/releases/
+  IMPORTANT: It's necessary to run Wokwi Gateway and "Enable Private Wokwi IoT Gateway" by F1 from this code-editor
+  Download Wokwi IoT Network Gateway by: https://github.com/wokwi/wokwigw/releases/
 */
 
 #include <ArduinoJson.h>
@@ -76,6 +66,8 @@ static char *mqtt_commands[] = {
 };
 
 volatile TickType_t Wifi_tickCount;
+volatile TickType_t Led_tickCount;
+volatile TickType_t Report_tickCount;
 volatile TickType_t Mqtt_tickCount;
 volatile TickType_t Dht_tickCount;
 
@@ -111,6 +103,14 @@ void pvTask_Rgb(void *arg)
   {
     if(led_state != STATE_OFF)
     {
+      //web error build
+      /*if(((led_state == STATE_BLINK_1S) && (millis()-Led_tickCount >= 1000))
+        || ((led_state == STATE_BLINK_300MS) && (millis()-Led_tickCount >= 300)))
+      {
+        Led_tickCount = millis();
+        digitalWrite(LED_PIN, !digitalRead(LED_PIN));
+      }*/
+
       switch(led_collor)
       {
         case GREEN:
@@ -131,7 +131,6 @@ void pvTask_Rgb(void *arg)
     {
       set_rgb(0,0,0);
     }
-
   }
 }
 
@@ -212,9 +211,9 @@ void pvTask_StateReport(void *arg)
   while(1)
   {
     //print each 3s the temp, hum, led_state, led_collor
-    if(millis()-Mqtt_tickCount >= 3000)
+    if(millis()-Report_tickCount >= 3000)
     {
-      Mqtt_tickCount = millis();
+      Report_tickCount = millis();
       print_status();
 
       Serial.print(strStatus);
@@ -360,7 +359,9 @@ void ConnectWiFi(void)
 
 void ConnectMQTT(void)
 {
-  while (!MQTT.connected()) {
+  Mqtt_tickCount = millis();
+
+  do{
     Serial.print("Attempting MQTT connection: ");
     Serial.println(BROKER_MQTT);
     if (MQTT.connect(ID_MQTT)) {
@@ -373,7 +374,7 @@ void ConnectMQTT(void)
       Serial.println(", try again in 2 seconds");
       vTaskDelay(pdMS_TO_TICKS(2000));
     }
-  }
+  }while((millis()-Mqtt_tickCount <= 10000) && (!MQTT.connected()));
 }
 
 void getTemperature(void)
