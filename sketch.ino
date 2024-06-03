@@ -59,11 +59,16 @@ const char *PASSWORD = "";
 const char *BROKER_MQTT = "broker.hivemq.com";
 int BROKER_PORT = 1883;
 
-static char strTemperature[10] = {0};
-static char strHumidity[10] = {0};
+static char strStatus[40] = {0};
+static char strTemp[10] = {0};
 
+static char *led_collor_string[] = {"GREEN","YELLOW","RED","BLUE"};
+static char *led_state_string[] = {"OFF","ON","BLINK_1000MS","BLINK_300MS"};
+
+volatile TickType_t Wifi_tickCount;
 volatile TickType_t Mqtt_tickCount;
 volatile TickType_t Dht_tickCount;
+
 float temperature;
 float humidity;
 
@@ -83,10 +88,6 @@ void setup()
   xTaskCreatePinnedToCore(pvTask_StateReport,  "state_h",  4096, NULL, 1, &state_h,  PRO_CPU_NUM);
 
   Serial.begin(115200);
-  dht.begin();
-
-  initWiFi();
-  initMQTT();
 }
 
 void loop()
@@ -125,6 +126,8 @@ void pvTask_Rgb(void *arg)
 
 void pvTask_Dht22(void *arg)
 {
+  dht.begin();
+
   while(1)
   {
     if(millis()-Dht_tickCount >= 250) //read dht each 250ms
@@ -193,34 +196,69 @@ void pvTask_Button(void *arg)
 
 void pvTask_StateReport(void *arg)
 {
+  initMQTT();
+
   while(1)
   {
-    if(millis()-Mqtt_tickCount >= 3000) //3s period
+    //print each 3s the temp, hum, led_state, led_collor
+    if(millis()-Mqtt_tickCount >= 3000)
     {
       Mqtt_tickCount = millis();
-      
-      checkWiFIAndMQTT();
+      print_status();
 
-      DynamicJsonDocument doc(1024);
-      doc["id"] = "sensor1";
-      doc["humid"] = humidity;
-      doc["temp"] = temperature;
+      Serial.print(strStatus);
 
-      // Serialize JSON document
-      String payload;
-      serializeJson(doc, payload);
-      MQTT.publish(TOPIC_PUBLISH_JSON, payload.c_str());  
+      if (WiFi.status() != WL_CONNECTED)
+        ConnectWiFi();
 
-      // Keep-alive da comunicação com broker MQTT
-      MQTT.loop();
+      if (!MQTT.connected())
+        ConnectMQTT();
+
+      if (MQTT.connected() && (WiFi.status() == WL_CONNECTED))
+      {
+        DynamicJsonDocument doc(1024);
+        doc["id"] = "sensor1";
+        doc["humid"] = humidity;
+        doc["temp"] = temperature;
+
+        // Serialize JSON document
+        String payload;
+        serializeJson(doc, payload);
+        MQTT.publish(TOPIC_PUBLISH_JSON, payload.c_str());  
+
+        // Keep-alive broker MQTT
+        MQTT.loop();
+      }
     }
   }
 }
 
+void print_status(void)
+{
+  memset(strStatus, 0, sizeof(strStatus));
+  memset(strTemp, 0, sizeof(strTemp));
+
+  strcat(strStatus, "temp:");
+  sprintf(strTemp, "%.2f, ", temperature);
+  strcat(strStatus, strTemp);
+
+  strcat(strStatus, "hum:");
+  sprintf(strTemp, "%.2f, ", humidity);
+  strcat(strStatus, strTemp);
+
+  strcat(strStatus, "led_state:");
+  strcat(strStatus, led_state_string[led_state]);
+  strcat(strStatus, ", ");
+
+  strcat(strStatus, "led_collor:");
+  strcat(strStatus, led_collor_string[led_collor]);
+  strcat(strStatus, "\r\n");
+}
+
 void initMQTT(void)
 {
-  MQTT.setServer(BROKER_MQTT, BROKER_PORT); // Informa qual broker e porta deve ser conectado
-  MQTT.setCallback(callbackMQTT);           // Atribui função de callback (função chamada quando qualquer informação de um dos tópicos subescritos chega)
+  MQTT.setServer(BROKER_MQTT, BROKER_PORT);
+  MQTT.setCallback(callbackMQTT);
 }
 
 void callbackMQTT(char *topic, byte *payload, unsigned int length)
@@ -245,36 +283,34 @@ void callbackMQTT(char *topic, byte *payload, unsigned int length)
   }
 }
 
-void reconnectWiFi(void)
+void ConnectWiFi(void)
 {
-  // se já está conectado a rede WI-FI, nada é feito.
-  // Caso contrário, são efetuadas tentativas de conexão
-  if (WiFi.status() == WL_CONNECTED)
-    return;
-
-  WiFi.begin(SSID, PASSWORD); // Conecta na rede WI-FI
-
-  while (WiFi.status() != WL_CONNECTED) {
-    vTaskDelay(pdMS_TO_TICKS(100));
-    Serial.print(".");
-  }
-
-  Serial.println();
-  Serial.print("Connected SSID: ");
+  vTaskDelay(pdMS_TO_TICKS(10));
+  Serial.print("Connecting on network: ");
   Serial.println(SSID);
-  Serial.print("IP: ");
-  Serial.println(WiFi.localIP());
+
+  WiFi.begin(SSID, PASSWORD);
+  Wifi_tickCount = millis();
+
+  do{
+    vTaskDelay(pdMS_TO_TICKS(150));
+    Serial.print(".");
+  }while((millis()-Wifi_tickCount <= 10000) && (WiFi.status() != WL_CONNECTED));
+
+  if(WiFi.status() != WL_CONNECTED)
+  {
+    Serial.println("\nTimeout reached");    
+  }
+  else
+  {
+    Serial.print("\nConnected SSID: ");
+    Serial.println(SSID);
+    Serial.print("IP: ");
+    Serial.println(WiFi.localIP());
+  }
 }
 
-void checkWiFIAndMQTT(void)
-{
-  if (!MQTT.connected())
-    reconnectMQTT(); // se não há conexão com o Broker, a conexão é refeita
-
-  reconnectWiFi(); // se não há conexão com o WiFI, a conexão é refeita
-}
-
-void reconnectMQTT(void)
+void ConnectMQTT(void)
 {
   while (!MQTT.connected()) {
     Serial.print("Attempting MQTT connection: ");
@@ -290,16 +326,6 @@ void reconnectMQTT(void)
       vTaskDelay(pdMS_TO_TICKS(2000));
     }
   }
-}
-
-void initWiFi(void)
-{
-  vTaskDelay(pdMS_TO_TICKS(10));
-  Serial.print("Connecting on network: ");
-  Serial.println(SSID);
-  Serial.println("Wait");
-
-  reconnectWiFi();
 }
 
 void getTemperature(void)
