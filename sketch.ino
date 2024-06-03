@@ -27,9 +27,11 @@
 #include "api_structs.h"
 #include <PubSubClient.h>
 #include <WiFi.h>
-#include <FastLED.h>
 
-#define NUM_LEDS      1
+#define RED_PIN       10
+#define GREEN_PIN     9
+#define BLUE_PIN      46
+
 #define LED_PIN       1
 #define DHT_PIN       16
 #define DHT_TYPE      DHT22
@@ -68,18 +70,12 @@ float humidity;
 WiFiClient espClient;
 PubSubClient MQTT(espClient);
 
-CRGB leds[NUM_LEDS];
-
 void setup()
 {
   setCpuFrequencyMhz(240); //Set CPU frequency to 240 MHz
-
-  pinMode(BT_PIN, INPUT_PULLUP);
-  pinMode(LED_PIN, OUTPUT);
-  digitalWrite(LED_PIN, LOW);
+  gpio_init();
 
   button.state = UNPRESSED;
-  FastLED.addLeds<NEOPIXEL, LED_PIN>(leds, NUM_LEDS);  // GRB ordering is assumed
 
   xTaskCreatePinnedToCore(pvTask_Rgb,          "rgb_h",    2048, NULL, 1, &rgb_h,    APP_CPU_NUM);
   xTaskCreatePinnedToCore(pvTask_Dht22,        "dht_h",    2048, NULL, 1, &dht_h,    APP_CPU_NUM);
@@ -101,6 +97,29 @@ void pvTask_Rgb(void *arg)
 {
   while(1)
   {
+    if(led_state != STATE_OFF)
+    {
+      switch(led_collor)
+      {
+        case GREEN:
+        set_rgb(0,1,0);
+        break;
+        case YELLOW:
+        set_rgb(1,1,0);
+        break;
+        case RED:
+        set_rgb(1,0,0);
+        break;
+        case BLUE:
+        set_rgb(0,0,1);
+        break;
+      }
+    }
+    else
+    {
+      set_rgb(0,0,0);
+    }
+
   }
 }
 
@@ -160,6 +179,7 @@ void pvTask_Button(void *arg)
               led_state = STATE_OFF;
 
             Serial.println(led_state);
+            digitalWrite(LED_PIN, !(digitalRead(LED_PIN)));
           }
 
           button.state = UNPRESSED;
@@ -235,14 +255,14 @@ void reconnectWiFi(void)
   WiFi.begin(SSID, PASSWORD); // Conecta na rede WI-FI
 
   while (WiFi.status() != WL_CONNECTED) {
-    delay(100);
+    vTaskDelay(pdMS_TO_TICKS(100));
     Serial.print(".");
   }
 
   Serial.println();
   Serial.print("Connected SSID: ");
-  Serial.print(SSID);
-  Serial.println("IP: ");
+  Serial.println(SSID);
+  Serial.print("IP: ");
   Serial.println(WiFi.localIP());
 }
 
@@ -257,24 +277,24 @@ void checkWiFIAndMQTT(void)
 void reconnectMQTT(void)
 {
   while (!MQTT.connected()) {
-    Serial.print("Attempting MQTT connection...");
+    Serial.print("Attempting MQTT connection: ");
     Serial.println(BROKER_MQTT);
     if (MQTT.connect(ID_MQTT)) {
       Serial.println("Connected");
       // Once connected, publish an announcement...
       MQTT.subscribe(TOPIC_SUBSCRIBE_LED);
     } else {
-      Serial.print("failed, rc=");
+      Serial.print("failed with state ");
       Serial.print(MQTT.state());
-      Serial.println(" try again in 2 seconds");
-      delay(2000);
+      Serial.println(", try again in 2 seconds");
+      vTaskDelay(pdMS_TO_TICKS(2000));
     }
   }
 }
 
 void initWiFi(void)
 {
-  delay(10);
+  vTaskDelay(pdMS_TO_TICKS(10));
   Serial.print("Connecting on network: ");
   Serial.println(SSID);
   Serial.println("Wait");
@@ -302,6 +322,22 @@ void getHumidity(void)
     humidity = data;
 }
 
+void gpio_init(void)
+{
+  pinMode(BT_PIN, INPUT_PULLUP);
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, LOW);
+
+  pinMode(RED_PIN, OUTPUT);
+  pinMode(GREEN_PIN, OUTPUT);
+  pinMode(BLUE_PIN, OUTPUT);
+  set_rgb(0,0,0);
+}
+
+void set_rgb(bool r, bool g, bool b)
+{
+  digitalWrite(RED_PIN, !r); digitalWrite(GREEN_PIN, !g); digitalWrite(BLUE_PIN, !b);
+}
 /*
     Serial.print(__func__);
     Serial.print(" : ");
@@ -311,16 +347,16 @@ void getHumidity(void)
     Serial.println(xPortGetCoreID());
     Serial.println();
 
-    vTaskDelay(100);
+    vTaskvTaskDelay(100);
 */
 
 /*
     leds[0] = CRGB::Red;
     FastLED.show();
-    delay(500);
+    vTaskDelay(500);
     // Now turn the LED off, then pause
     leds[0] = CRGB::Black;
     FastLED.show();
-    delay(500);
+    vTaskDelay(500);
 */
 
