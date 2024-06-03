@@ -40,10 +40,4 @@ typedef struct
   volatile TickType_t tickCount;
 }sButton;
 
-typedef struct
-{
-  eMqttState state;
-  volatile TickType_t tickCount;
-}sMqtt;
-
 #endif

@@ -6,3 +6,5 @@ DHT sensor library
 DHT22
 Adafruit NeoPixel
 PubSubClient
+FastLED
+ArduinoJson

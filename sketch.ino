@@ -20,6 +20,7 @@
     https://github.com/wokwi/wokwigw/releases/
 */
 
+#include <ArduinoJson.h>
 #include "DHT.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -36,10 +37,9 @@
 #define IS_BT_PRESSED !gpio_get_level(BT_PIN)
 
 /* MQTT config */
-#define TOPIC_SUBSCRIBE_LED       "topic_on_off_led"
-#define TOPIC_PUBLISH_TEMPERATURE "topic_sensor_temperature"
-#define TOPIC_PUBLISH_HUMIDITY    "topic_sensor_humidity"
-#define ID_MQTT "esp32_mqtt" //session mqtt id
+#define TOPIC_SUBSCRIBE_LED "topic_on_off_led"
+#define TOPIC_PUBLISH_JSON  "topic_json"
+#define ID_MQTT             "esp32_mqtt" //session mqtt id
 
 DHT dht (DHT_PIN, DHT_TYPE);
 
@@ -181,13 +181,15 @@ void pvTask_StateReport(void *arg)
       
       checkWiFIAndMQTT();
 
-      // Formata as strings a serem enviadas para o dashboard (campos texto)
-      sprintf(strTemperature, "%.2fC", temperature);
-      sprintf(strHumidity, "%.2f", humidity);
+      DynamicJsonDocument doc(1024);
+      doc["id"] = "sensor1";
+      doc["humid"] = humidity;
+      doc["temp"] = temperature;
 
-      // Envia as strings ao dashboard MQTT
-      MQTT.publish(TOPIC_PUBLISH_TEMPERATURE, strTemperature);
-      MQTT.publish(TOPIC_PUBLISH_HUMIDITY, strHumidity);
+      // Serialize JSON document
+      String payload;
+      serializeJson(doc, payload);
+      MQTT.publish(TOPIC_PUBLISH_JSON, payload.c_str());  
 
       // Keep-alive da comunicação com broker MQTT
       MQTT.loop();
@@ -211,17 +213,15 @@ void callbackMQTT(char *topic, byte *payload, unsigned int length)
     msg += c;
   }
 
-  Serial.printf("Chegou a seguinte string via MQTT: %s do topico: %s\n", msg, topic);
+  Serial.printf("MQTT-rx:%s from topic:%s\n", msg, topic);
 
   /* Toma ação dependendo da string recebida */
   if (msg.equals("1")) {
     digitalWrite(LED_PIN, HIGH);
-    Serial.print("LED ligado por comando MQTT");
   }
 
   if (msg.equals("0")) {
     digitalWrite(LED_PIN, LOW);
-    Serial.print("LED desligado por comando MQTT");
   }
 }
 
@@ -240,9 +240,9 @@ void reconnectWiFi(void)
   }
 
   Serial.println();
-  Serial.print("Conectado com sucesso na rede ");
+  Serial.print("Connected SSID: ");
   Serial.print(SSID);
-  Serial.println("IP obtido: ");
+  Serial.println("IP: ");
   Serial.println(WiFi.localIP());
 }
 
@@ -257,14 +257,16 @@ void checkWiFIAndMQTT(void)
 void reconnectMQTT(void)
 {
   while (!MQTT.connected()) {
-    Serial.print("* Tentando se conectar ao Broker MQTT: ");
+    Serial.print("Attempting MQTT connection...");
     Serial.println(BROKER_MQTT);
     if (MQTT.connect(ID_MQTT)) {
-      Serial.println("Conectado com sucesso ao broker MQTT!");
+      Serial.println("Connected");
+      // Once connected, publish an announcement...
       MQTT.subscribe(TOPIC_SUBSCRIBE_LED);
     } else {
-      Serial.println("Falha ao reconectar no broker.");
-      Serial.println("Nova tentativa de conexao em 2 segundos.");
+      Serial.print("failed, rc=");
+      Serial.print(MQTT.state());
+      Serial.println(" try again in 2 seconds");
       delay(2000);
     }
   }
@@ -273,10 +275,9 @@ void reconnectMQTT(void)
 void initWiFi(void)
 {
   delay(10);
-  Serial.println("------Conexao WI-FI------");
-  Serial.print("Conectando-se na rede: ");
+  Serial.print("Connecting on network: ");
   Serial.println(SSID);
-  Serial.println("Aguarde");
+  Serial.println("Wait");
 
   reconnectWiFi();
 }
