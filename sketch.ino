@@ -39,7 +39,7 @@
 #define IS_BT_PRESSED !gpio_get_level(BT_PIN)
 
 /* MQTT config */
-#define TOPIC_SUBSCRIBE_LED "topic_on_off_led"
+#define TOPIC_SUBSCRIBE_LED "topic_rgb"
 #define TOPIC_PUBLISH_JSON  "topic_json"
 #define ID_MQTT             "esp32_mqtt" //session mqtt id
 
@@ -63,7 +63,17 @@ static char strStatus[40] = {0};
 static char strTemp[10] = {0};
 
 static char *led_collor_string[] = {"GREEN","YELLOW","RED","BLUE"};
-static char *led_state_string[] = {"OFF","ON","BLINK_1000MS","BLINK_300MS"};
+static char *led_state_string[] = {"OFF","ON","BLINK_1S","BLINK_0.3S"};
+static char *mqtt_commands[] = {
+  "STATE=OFF",
+  "STATE=ON",
+  "STATE=BLINK_1S",
+  "STATE=BLINK_0.3S",
+  "COLLOR=GREEN",
+  "COLLOR=YELLOW",
+  "COLLOR=RED",
+  "COLLOR=BLUE"
+};
 
 volatile TickType_t Wifi_tickCount;
 volatile TickType_t Mqtt_tickCount;
@@ -92,6 +102,7 @@ void setup()
 
 void loop()
 {
+  vTaskDelete(NULL);
 }
 
 void pvTask_Rgb(void *arg)
@@ -265,21 +276,58 @@ void callbackMQTT(char *topic, byte *payload, unsigned int length)
 {
   String msg;
 
-  // Obtem a string do payload recebido
   for (int i = 0; i < length; i++) {
     char c = (char)payload[i];
     msg += c;
   }
 
-  Serial.printf("MQTT-rx:%s from topic:%s\n", msg, topic);
+  Serial.printf("MQTT topic:%s msg:%s\n", topic, msg);
+  
+  for(int i = 0; i <= sizeof(mqtt_commands); i++)
+  {
+    if(msg.equals(mqtt_commands[i]))
+    {
+      digitalWrite(LED_PIN, !digitalRead(LED_PIN));
+      
+      switch(i)
+      {
+        case 0: //"STATE=OFF"
+        led_state = STATE_OFF;
+        break;
 
-  /* Toma ação dependendo da string recebida */
-  if (msg.equals("1")) {
-    digitalWrite(LED_PIN, HIGH);
-  }
+        case 1: //"STATE=ON"
+        led_state = STATE_ON;
+        break;
 
-  if (msg.equals("0")) {
-    digitalWrite(LED_PIN, LOW);
+        case 2: //"STATE=BLINK_1S"
+        led_state = STATE_BLINK_1S;
+        break;
+
+        case 3: //"STATE=BLINK_0.3S"
+        led_state = STATE_BLINK_300MS;        
+        break;
+
+        case 4: //"COLLOR=GREEN"
+        led_collor = GREEN;
+        break;
+
+        case 5: //"COLLOR=YELLOW"
+        led_collor = YELLOW;
+        break;             
+
+        case 6: //"COLLOR=RED"
+        led_collor = RED;
+        break;
+
+        case 7: //"COLLOR=BLUE"
+        led_collor = BLUE;
+        break;
+
+        default:
+        break;
+      }
+      break;
+    }
   }
 }
 
