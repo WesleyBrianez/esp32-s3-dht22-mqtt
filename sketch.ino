@@ -26,7 +26,9 @@
 #include "api_structs.h"
 #include <PubSubClient.h>
 #include <WiFi.h>
+#include <FastLED.h>
 
+#define NUM_LEDS      1
 #define LED_PIN       1
 #define DHT_PIN       16
 #define DHT_TYPE      DHT22
@@ -37,13 +39,11 @@
 #define TOPIC_SUBSCRIBE_LED       "topic_on_off_led"
 #define TOPIC_PUBLISH_TEMPERATURE "topic_sensor_temperature"
 #define TOPIC_PUBLISH_HUMIDITY    "topic_sensor_humidity"
-#define PUBLISH_DELAY 2000
 #define ID_MQTT "esp32_mqtt" //session mqtt id
 
 DHT dht (DHT_PIN, DHT_TYPE);
 
 sButton button;
-sMqtt mqtt;
 uint8_t led_collor; //eLedCollor
 uint8_t led_state; //eLedState
 
@@ -60,8 +60,15 @@ int BROKER_PORT = 1883;
 static char strTemperature[10] = {0};
 static char strHumidity[10] = {0};
 
+volatile TickType_t Mqtt_tickCount;
+volatile TickType_t Dht_tickCount;
+float temperature;
+float humidity;
+
 WiFiClient espClient;
 PubSubClient MQTT(espClient);
+
+CRGB leds[NUM_LEDS];
 
 void setup()
 {
@@ -72,6 +79,7 @@ void setup()
   digitalWrite(LED_PIN, LOW);
 
   button.state = UNPRESSED;
+  FastLED.addLeds<NEOPIXEL, LED_PIN>(leds, NUM_LEDS);  // GRB ordering is assumed
 
   xTaskCreatePinnedToCore(pvTask_Rgb,          "rgb_h",    2048, NULL, 1, &rgb_h,    APP_CPU_NUM);
   xTaskCreatePinnedToCore(pvTask_Dht22,        "dht_h",    2048, NULL, 1, &dht_h,    APP_CPU_NUM);
@@ -100,6 +108,12 @@ void pvTask_Dht22(void *arg)
 {
   while(1)
   {
+    if(millis()-Dht_tickCount >= 250) //read dht each 250ms
+    {
+      Dht_tickCount = millis();
+      getTemperature();
+      getHumidity();
+    }
   }
 }
 
@@ -161,15 +175,15 @@ void pvTask_StateReport(void *arg)
 {
   while(1)
   {
-    if(millis()-mqtt.tickCount >= 3000) //3s period
+    if(millis()-Mqtt_tickCount >= 3000) //3s period
     {
-      mqtt.tickCount = millis();
+      Mqtt_tickCount = millis();
       
       checkWiFIAndMQTT();
 
       // Formata as strings a serem enviadas para o dashboard (campos texto)
-      sprintf(strTemperature, "%.2fC", getTemperature());
-      sprintf(strHumidity, "%.2f", getHumidity());
+      sprintf(strTemperature, "%.2fC", temperature);
+      sprintf(strHumidity, "%.2f", humidity);
 
       // Envia as strings ao dashboard MQTT
       MQTT.publish(TOPIC_PUBLISH_TEMPERATURE, strTemperature);
@@ -267,24 +281,24 @@ void initWiFi(void)
   reconnectWiFi();
 }
 
-float getTemperature(void)
+void getTemperature(void)
 {
-  float temperature = dht.readTemperature();
+  float data = dht.readTemperature();
 
-  if (isnan(temperature))
-    return -99.99;
+  if (isnan(data))
+    temperature = -99;
   else
-    return temperature;
+    temperature = data;
 }
 
-float getHumidity(void)
+void getHumidity(void)
 {
-  float humidity = dht.readHumidity();
+  float data = dht.readHumidity();
 
-  if (isnan(humidity))
-    return -99.99;
+  if (isnan(data))
+    humidity = -99;
   else
-    return humidity;
+    humidity = data;
 }
 
 /*
@@ -297,5 +311,15 @@ float getHumidity(void)
     Serial.println();
 
     vTaskDelay(100);
+*/
+
+/*
+    leds[0] = CRGB::Red;
+    FastLED.show();
+    delay(500);
+    // Now turn the LED off, then pause
+    leds[0] = CRGB::Black;
+    FastLED.show();
+    delay(500);
 */
 
