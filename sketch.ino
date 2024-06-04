@@ -36,6 +36,7 @@
 DHT dht (DHT_PIN, DHT_TYPE);
 
 sButton button;
+sLed led_rgb;
 uint8_t led_collor; //eLedCollor
 uint8_t led_state; //eLedState
 
@@ -49,16 +50,16 @@ const char *PASSWORD = "";
 const char *BROKER_MQTT = "broker.hivemq.com";
 int BROKER_PORT = 1883;
 
-static char strStatus[40] = {0};
-static char strTemp[10] = {0};
+static char strStatus[100] = {0};
+static char strTemp[20] = {0};
 
 static char *led_collor_string[] = {"GREEN","YELLOW","RED","BLUE"};
-static char *led_state_string[] = {"OFF","ON","BLINK_1S","BLINK_0.3S"};
+static char *led_state_string[] = {"OFF","ON","B1S","B300MS"};
 static char *mqtt_commands[] = {
   "STATE=OFF",
   "STATE=ON",
-  "STATE=BLINK_1S",
-  "STATE=BLINK_0.3S",
+  "STATE=B1S", //blink 1s
+  "STATE=B300MS", //blink 300ms
   "COLLOR=GREEN",
   "COLLOR=YELLOW",
   "COLLOR=RED",
@@ -73,6 +74,7 @@ volatile TickType_t Dht_tickCount;
 
 float temperature;
 float humidity;
+uint16_t blink_value;
 
 WiFiClient espClient;
 PubSubClient MQTT(espClient);
@@ -103,28 +105,37 @@ void pvTask_Rgb(void *arg)
   {
     if(led_state != STATE_OFF)
     {
-      //web error build
-      /*if(((led_state == STATE_BLINK_1S) && (millis()-Led_tickCount >= 1000))
-        || ((led_state == STATE_BLINK_300MS) && (millis()-Led_tickCount >= 300)))
+      if(led_rgb.refresh == 0)
       {
-        Led_tickCount = millis();
-        digitalWrite(LED_PIN, !digitalRead(LED_PIN));
-      }*/
+        switch(led_collor)
+        {
+          case GREEN:
+          led_rgb.r = 0; led_rgb.g = 1; led_rgb.b = 0;
+          break;
 
-      switch(led_collor)
+          case YELLOW:
+          led_rgb.r = 1; led_rgb.g = 1; led_rgb.b = 0;
+          break;
+
+          case RED:
+          led_rgb.r = 1; led_rgb.g = 0; led_rgb.b = 0;
+          break;
+
+          case BLUE:
+          led_rgb.r = 0; led_rgb.g = 0; led_rgb.b = 1;
+          break;
+        }
+        led_rgb.refresh = 1;
+      }
+      else //already know rgb config
       {
-        case GREEN:
-        set_rgb(0,1,0);
-        break;
-        case YELLOW:
-        set_rgb(1,1,0);
-        break;
-        case RED:
-        set_rgb(1,0,0);
-        break;
-        case BLUE:
-        set_rgb(0,0,1);
-        break;
+        if((blink_value != 0) && (millis() - Led_tickCount >= blink_value))
+        {
+          Led_tickCount = millis();
+          led_rgb.r = !led_rgb.r; led_rgb.g = !led_rgb.g; led_rgb.b = !led_rgb.b;
+          digitalWrite(LED_PIN, !digitalRead(LED_PIN));
+        }
+        set_rgb(led_rgb.r, led_rgb.g, led_rgb.b);
       }
     }
     else
@@ -155,6 +166,7 @@ void pvTask_Button(void *arg)
 
   while(1)
   {
+    //testing purpose
     if(millis()-button.tickCount >= 100) //bounce
     {
       bt = IS_BT_PRESSED;
@@ -189,7 +201,10 @@ void pvTask_Button(void *arg)
           {
             Serial.print("bt 1s - led_state:");
             if(++led_state >= LED_STATE_MAX_INDEX)
+            {
               led_state = STATE_OFF;
+              led_rgb.refresh = 0;
+            }
 
             Serial.println(led_state);
             digitalWrite(LED_PIN, !(digitalRead(LED_PIN)));
@@ -287,23 +302,28 @@ void callbackMQTT(char *topic, byte *payload, unsigned int length)
     if(msg.equals(mqtt_commands[i]))
     {
       digitalWrite(LED_PIN, !digitalRead(LED_PIN));
-      
+      led_rgb.refresh = 0;
+
       switch(i)
       {
         case 0: //"STATE=OFF"
         led_state = STATE_OFF;
+        blink_value = 0;
         break;
 
         case 1: //"STATE=ON"
         led_state = STATE_ON;
+        blink_value = 0;
         break;
 
         case 2: //"STATE=BLINK_1S"
         led_state = STATE_BLINK_1S;
+        blink_value = 1000;
         break;
 
         case 3: //"STATE=BLINK_0.3S"
-        led_state = STATE_BLINK_300MS;        
+        led_state = STATE_BLINK_300MS;
+        blink_value = 300;
         break;
 
         case 4: //"COLLOR=GREEN"
@@ -370,9 +390,9 @@ void ConnectMQTT(void)
       MQTT.subscribe(TOPIC_SUBSCRIBE_LED);
     } else {
       Serial.print("failed with state ");
-      Serial.print(MQTT.state());
-      Serial.println(", try again in 2 seconds");
-      vTaskDelay(pdMS_TO_TICKS(2000));
+      Serial.println(MQTT.state());
+      //Serial.println(", try again in 2 seconds");
+      //vTaskDelay(pdMS_TO_TICKS(2000));
     }
   }while((millis()-Mqtt_tickCount <= 10000) && (!MQTT.connected()));
 }
